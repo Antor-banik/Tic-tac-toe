@@ -1,0 +1,281 @@
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <limits>
+#include <vector>
+#include <algorithm>
+using namespace std;
+
+const int SIZE = 3;
+char board[SIZE][SIZE] = { {' ', ' ', ' '}, {' ', ' ', ' '}, {' ', ' ', ' '} };
+string currentUser;
+
+struct PlayerScore {
+    string username;
+    int wins, losses, draws;
+};
+
+// Show game board
+void printBoard() {
+    cout << "\n";
+    for (int i = 0; i < SIZE; i++) {
+        for (int j = 0; j < SIZE; j++) {
+            cout << " " << board[i][j] << " ";
+            if (j < SIZE - 1) cout << "|";
+        }
+        cout << "\n";
+        if (i < SIZE - 1) cout << "-----------\n";
+    }
+    cout << "\n";
+}
+
+// Check for empty cells
+bool isMovesLeft() {
+    for (int i = 0; i < SIZE; i++)
+        for (int j = 0; j < SIZE; j++)
+            if (board[i][j] == ' ')
+                return true;
+    return false;
+}
+
+// Evaluate board
+int evaluate() {
+    for (int row = 0; row < SIZE; row++) {
+        if (board[row][0] == board[row][1] && board[row][1] == board[row][2]) {
+            if (board[row][0] == 'O') return +10;
+            else if (board[row][0] == 'X') return -10;
+        }
+    }
+    for (int col = 0; col < SIZE; col++) {
+        if (board[0][col] == board[1][col] && board[1][col] == board[2][col]) {
+            if (board[0][col] == 'O') return +10;
+            else if (board[0][col] == 'X') return -10;
+        }
+    }
+    if (board[0][0] == board[1][1] && board[1][1] == board[2][2]) {
+        if (board[0][0] == 'O') return +10;
+        else if (board[0][0] == 'X') return -10;
+    }
+    if (board[0][2] == board[1][1] && board[1][1] == board[2][0]) {
+        if (board[0][2] == 'O') return +10;
+        else if (board[0][2] == 'X') return -10;
+    }
+    return 0;
+}
+
+// Minimax algorithm
+int minimax(bool isMax) {
+    int score = evaluate();
+    if (score == 10 || score == -10)
+        return score;
+    if (!isMovesLeft())
+        return 0;
+
+    if (isMax) {
+        int best = -numeric_limits<int>::max();
+        for (int i = 0; i < SIZE; i++)
+            for (int j = 0; j < SIZE; j++)
+                if (board[i][j] == ' ') {
+                    board[i][j] = 'O';
+                    best = max(best, minimax(false));
+                    board[i][j] = ' ';
+                }
+        return best;
+    } else {
+        int best = numeric_limits<int>::max();
+        for (int i = 0; i < SIZE; i++)
+            for (int j = 0; j < SIZE; j++)
+                if (board[i][j] == ' ') {
+                    board[i][j] = 'X';
+                    best = min(best, minimax(true));
+                    board[i][j] = ' ';
+                }
+        return best;
+    }
+}
+
+// Find best move for AI
+void findBestMove() {
+    int bestVal = -numeric_limits<int>::max();
+    int row = -1, col = -1;
+    for (int i = 0; i < SIZE; i++)
+        for (int j = 0; j < SIZE; j++)
+            if (board[i][j] == ' ') {
+                board[i][j] = 'O';
+                int moveVal = minimax(false);
+                board[i][j] = ' ';
+                if (moveVal > bestVal) {
+                    row = i;
+                    col = j;
+                    bestVal = moveVal;
+                }
+            }
+    if (row != -1 && col != -1)
+        board[row][col] = 'O';
+}
+
+// Player move
+void playerMove() {
+    int row, col;
+    while (true) {
+        cout << "Enter your move (row and column: 0, 1, or 2): ";
+        cin >> row >> col;
+        if (row >= 0 && row < SIZE && col >= 0 && col < SIZE && board[row][col] == ' ') {
+            board[row][col] = 'X';
+            break;
+        } else {
+            cout << "Invalid move. Try again.\n";
+        }
+    }
+}
+
+// Register user
+bool registerUser() {
+    string username, password;
+    cout << "Register - Enter a username: ";
+    cin >> username;
+    cout << "Enter a password: ";
+    cin >> password;
+    ofstream file("users.txt", ios::app);
+    if (file.is_open()) {
+        file << username << " " << password << endl;
+        file.close();
+        ofstream scoreFile("scores.txt", ios::app);
+        if (scoreFile.is_open()) {
+            scoreFile << username << " 0 0 0\n";
+            scoreFile.close();
+        }
+        currentUser = username;
+        cout << "Registration successful!\n";
+        return true;
+    }
+    return false;
+}
+
+// Login user
+bool loginUser() {
+    string username, password, fileUser, filePass;
+    cout << "Login - Enter your username: ";
+    cin >> username;
+    cout << "Enter your password: ";
+    cin >> password;
+    ifstream file("users.txt");
+    if (file.is_open()) {
+        while (file >> fileUser >> filePass) {
+            if (fileUser == username && filePass == password) {
+                currentUser = username;
+                cout << "Login successful!\n";
+                return true;
+            }
+        }
+        cout << "Login failed. Incorrect username or password.\n";
+    }
+    return false;
+}
+
+// Update score
+void updateScore(string result) {
+    ifstream inFile("scores.txt");
+    ofstream tempFile("temp.txt");
+    string user;
+    int wins, losses, draws;
+    while (inFile >> user >> wins >> losses >> draws) {
+        if (user == currentUser) {
+            if (result == "win") wins++;
+            else if (result == "loss") losses++;
+            else if (result == "draw") draws++;
+        }
+        tempFile << user << " " << wins << " " << losses << " " << draws << endl;
+    }
+    inFile.close();
+    tempFile.close();
+    remove("scores.txt");
+    rename("temp.txt", "scores.txt");
+}
+
+// Show current user's score
+void showScore() {
+    ifstream inFile("scores.txt");
+    string user;
+    int wins, losses, draws;
+    while (inFile >> user >> wins >> losses >> draws) {
+        if (user == currentUser) {
+            cout << "\nWelcome, " << currentUser << "! Your score:\n";
+            cout << "Wins: " << wins << " | Losses: " << losses << " | Draws: " << draws << "\n";
+            break;
+        }
+    }
+}
+
+// Compare for sorting
+bool compareWins(const PlayerScore &a, const PlayerScore &b) {
+    return a.wins > b.wins;
+}
+
+// Show leaderboard
+void showLeaderboard() {
+    ifstream inFile("scores.txt");
+    vector<PlayerScore> players;
+    string user;
+    int w, l, d;
+    while (inFile >> user >> w >> l >> d) {
+        players.push_back({user, w, l, d});
+    }
+    sort(players.begin(), players.end(), compareWins);
+    cout << "\nLeaderboard (sorted by wins):\n";
+    cout << "---------------------------------\n";
+    cout << "Username\tWins\tLosses\tDraws\n";
+    cout << "---------------------------------\n";
+    for (const auto &p : players) {
+        cout << p.username << "\t\t" << p.wins << "\t" << p.losses << "\t" << p.draws << "\n";
+    }
+    cout << "---------------------------------\n";
+}
+
+// Main function
+int main() {
+    int choice;
+    cout << "Welcome to Tic Tac Toe\n";
+    cout << "1. Register\n2. Login\nEnter choice: ";
+    cin >> choice;
+    bool accessGranted = false;
+    if (choice == 1) accessGranted = registerUser();
+    else if (choice == 2) accessGranted = loginUser();
+    else cout << "Invalid choice.\n";
+    if (!accessGranted) return 0;
+
+    showScore();
+    cout << "\nTic Tac Toe - You (X) vs AI (O)\n";
+    printBoard();
+
+    while (true) {
+        playerMove();
+        printBoard();
+        if (evaluate() == -10) {
+            cout << "You win!\n";
+            updateScore("win");
+            break;
+        }
+        if (!isMovesLeft()) {
+            cout << "It's a draw!\n";
+            updateScore("draw");
+            break;
+        }
+        cout << "AI's turn...\n";
+        findBestMove();
+        printBoard();
+        if (evaluate() == 10) {
+            cout << "AI wins!\n";
+            updateScore("loss");
+            break;
+        }
+        if (!isMovesLeft()) {
+            cout << "It's a draw!\n";
+            updateScore("draw");
+            break;
+        }
+    }
+
+    showLeaderboard();
+    return 0;
+}
